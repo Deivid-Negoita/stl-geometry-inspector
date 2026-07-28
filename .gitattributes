@@ -1,0 +1,13 @@
+# Normalize to LF in the repository, check out native on Windows.
+* text=auto
+
+*.yml        text eol=lf
+*.sh         text eol=lf
+
+# Binary — never diff, never convert. STL here is the binary variant.
+*.stl        binary
+*.png        binary
+
+# Collapse generated and sample assets in pull request diffs.
+docs/images/**  linguist-documentation
+samples/**      linguist-vendored

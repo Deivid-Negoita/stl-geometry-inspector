@@ -1,0 +1,18 @@
+# ── editors and OS ─────────────────────────────────────────────
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Python (the only local tooling is the static server) ───────
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# ── scratch ────────────────────────────────────────────────────
+# Parts dropped in for a quick measurement are not part of the project.
+# samples/ is committed on purpose, so it is excluded from this rule.
+*.stl
+!samples/*.stl
