@@ -8,8 +8,8 @@ step, and the file never leaves the browser.
 
 This began as the geometry engine behind a 3D-printing quote tool: the customer
 uploads a part, the page measures it, and the price follows from the volume.
-That measurement layer is the useful, reusable half, so this repository is only
-that — the analysis, with the pricing and the order flow taken out.
+That measurement layer is the useful, reusable half, so this repository keeps
+only that part. The pricing and the order flow are gone.
 
 ---
 
@@ -87,4 +87,4 @@ Sans and IBM Plex Mono.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).
