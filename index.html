@@ -4,512 +4,507 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>STL Geometry Inspector</title>
-<meta name="description" content="Browser-based geometric analysis of STL meshes: surface area, volume, bounding box and watertightness. No upload, no build step.">
+<meta name="description" content="Measure an STL in the browser: surface area, volume, bounding box and whether the mesh is closed. The file is never uploaded.">
+<meta name="color-scheme" content="light dark">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  /* Graphite instrument chassis. One signal colour, three axis colours. */
-  --bg:        #0e1012;
-  --viewport:  #08090a;
-  --panel:     #15181b;
-  --raised:    #1b1f23;
-  --line:      #24282d;
-  --line-soft: #1a1e21;
+  --bg:          #f4f5f7;
+  --surface:     #ffffff;
+  --viewport:    #e9ecef;
+  --line:        #e1e4e8;
+  --line-strong: #cdd2d9;
 
-  --ink:       #e9ecef;
-  --ink-dim:   #8b939b;
-  --ink-faint: #5a626a;
+  --ink:   #16191d;
+  --ink-2: #4a525c;
+  --ink-3: #69717b;
 
-  --signal:    #f2a33c;   /* amber, as on a bench instrument */
-  --axis-x:    #e5484d;
-  --axis-y:    #4cc38a;
-  --axis-z:    #4f8ff7;
-  --alert:     #e5484d;
+  --accent:     #1f5fd6;
+  --accent-hi:  #174db3;
+  --accent-ink: #ffffff;
+  --accent-bg:  #e8effc;
+
+  --ok:      #146c3f;
+  --ok-bg:   #e3f3ea;
+  --warn:    #8f5300;
+  --warn-bg: #fcefd9;
+
+  --axis-x: #d63b3b;
+  --axis-y: #1f9254;
+  --axis-z: #2e6de0;
+
+  /* Read by the scene, so the part follows the page theme. */
+  --mesh:       #9aa5b1;
+  --edge:       #2a3038;
+  --grid-major: #c3c9d0;
+  --grid-minor: #d8dce1;
 
   --sans: 'IBM Plex Sans', system-ui, sans-serif;
   --mono: 'IBM Plex Mono', ui-monospace, monospace;
+  --r: 6px;
+  --shadow: 0 1px 2px rgba(16,24,40,.06), 0 1px 3px rgba(16,24,40,.08);
+}
 
-  --r:    4px;
-  --pad:  18px;
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg:          #0f1113;
+    --surface:     #16191c;
+    --viewport:    #0c0e10;
+    --line:        #262a2f;
+    --line-strong: #353b42;
+
+    --ink:   #e8eaed;
+    --ink-2: #b4bac2;
+    --ink-3: #8c949d;
+
+    --accent:     #5b95f7;
+    --accent-hi:  #78a8fa;
+    --accent-ink: #0a1324;
+    --accent-bg:  #16233a;
+
+    --ok:      #5fcf93;
+    --ok-bg:   #12291d;
+    --warn:    #f0b25a;
+    --warn-bg: #2d2211;
+
+    --axis-x: #ef5b5b;
+    --axis-y: #4cc38a;
+    --axis-z: #5b95f7;
+
+    --mesh:       #8d97a2;
+    --edge:       #050607;
+    --grid-major: #2b3036;
+    --grid-minor: #1b1f23;
+
+    --shadow: 0 1px 2px rgba(0,0,0,.4);
+  }
 }
 
 html, body { height: 100%; }
 
 body {
   font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.45;
   background: var(--bg);
   color: var(--ink);
-  overflow: hidden;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
   -webkit-font-smoothing: antialiased;
 }
 
-/* Shared label style: the small engraved caption on a front panel. */
-.caption {
-  font-family: var(--mono);
-  font-size: 9.5px;
-  font-weight: 500;
-  letter-spacing: .16em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
+.num { font-variant-numeric: tabular-nums; }
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font: 500 13px/1 var(--sans);
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r);
+  padding: 8px 13px;
+  cursor: pointer;
+  white-space: nowrap;
+  text-decoration: none;
+  transition: background-color .12s, border-color .12s, color .12s;
+}
+.btn:hover { background: var(--bg); }
+.btn:disabled { opacity: .45; cursor: not-allowed; background: var(--surface); }
+.btn svg { width: 15px; height: 15px; flex-shrink: 0; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn.primary:hover { background: var(--accent-hi); border-color: var(--accent-hi); }
+.btn.ghost { background: transparent; border-color: transparent; color: var(--ink-2); }
+.btn.ghost:hover:not(:disabled) { background: var(--bg); color: var(--ink); }
+.btn[aria-pressed="true"] { background: var(--accent-bg); border-color: var(--accent); color: var(--accent); }
+
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+kbd {
+  font: 500 11px/1 var(--mono);
+  color: var(--ink-2);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  padding: 2px 5px;
 }
 
-/* ─────────────────────────  TOP BAR  ───────────────────────── */
+/* ---------- Header ---------- */
 header {
   flex-shrink: 0;
   display: flex;
   align-items: center;
-  gap: 20px;
-  padding: 0 var(--pad);
-  height: 52px;
-  background: var(--panel);
+  gap: 16px;
+  height: 56px;
+  padding: 0 20px;
+  background: var(--surface);
   border-bottom: 1px solid var(--line);
 }
+.brand { display: flex; align-items: center; gap: 10px; white-space: nowrap; }
+.brand svg { width: 22px; height: 22px; color: var(--accent); }
+.brand h1 { font-size: 15px; font-weight: 600; letter-spacing: -.005em; }
 
-.wordmark {
+.file {
   display: flex;
-  align-items: baseline;
-  gap: 9px;
-  white-space: nowrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
 }
-.wordmark b {
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: .01em;
-}
-.wordmark span {
-  font-family: var(--mono);
-  font-size: 9.5px;
-  letter-spacing: .14em;
-  text-transform: uppercase;
-  color: var(--signal);
-}
-
-/* Thin amber rule that separates the wordmark from the file slot. */
-.divider {
-  width: 1px;
-  height: 20px;
-  background: var(--line);
-  flex-shrink: 0;
-}
-
+.file::before { content: ''; width: 1px; height: 22px; margin-right: 8px; background: var(--line); flex-shrink: 0; }
 #filename {
-  font-family: var(--mono);
-  font-size: 11.5px;
-  color: var(--ink-dim);
+  font: 13px var(--mono);
+  color: var(--ink);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  flex: 1;
-  min-width: 0;
 }
-#filename.empty { color: var(--ink-faint); }
+#filename.empty { font-family: var(--sans); color: var(--ink-3); }
+#filesize { font-size: 12px; color: var(--ink-3); white-space: nowrap; }
 
-/* Upload control */
+.header-actions { display: flex; align-items: center; gap: 8px; }
 input[type="file"] { display: none; }
-.btn {
-  font-family: var(--sans);
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--ink);
-  background: var(--raised);
-  border: 1px solid var(--line);
-  border-radius: var(--r);
-  padding: 7px 14px;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: border-color .16s, background .16s, color .16s;
-}
-.btn:hover { border-color: var(--signal); color: var(--signal); }
-.btn:active { background: #101315; }
-.btn:disabled { opacity: .35; cursor: not-allowed; border-color: var(--line); color: var(--ink); }
-.btn.primary {
-  background: var(--signal);
-  border-color: var(--signal);
-  color: #17120a;
-  font-weight: 600;
-}
-.btn.primary:hover { background: #ffb457; border-color: #ffb457; color: #17120a; }
 
-/* ─────────────────────────  LAYOUT  ───────────────────────── */
+/* ---------- Layout ---------- */
 main { display: flex; flex: 1; min-height: 0; }
 
-#stage {
-  position: relative;
-  flex: 1;
-  min-width: 0;
-  background: var(--viewport);
-}
+#stage { position: relative; flex: 1; min-width: 0; background: var(--viewport); }
 #stage canvas { display: block; }
 
-/* Vignette, so the model sits in a lit pool instead of a flat field. */
-#stage::after {
-  content: '';
+/* Empty state */
+#empty {
   position: absolute;
   inset: 0;
-  pointer-events: none;
-  background: radial-gradient(ellipse at 50% 45%, transparent 40%, rgba(0,0,0,.55) 100%);
-}
-
-/* Corner registration marks, to frame the stage like an instrument. */
-.reg {
-  position: absolute;
-  width: 13px; height: 13px;
-  border: 1px solid var(--line);
-  pointer-events: none;
-  z-index: 2;
-}
-.reg.tl { top: 14px; left: 14px;  border-right: 0; border-bottom: 0; }
-.reg.tr { top: 14px; right: 14px; border-left: 0;  border-bottom: 0; }
-.reg.bl { bottom: 14px; left: 14px;  border-right: 0; border-top: 0; }
-.reg.br { bottom: 14px; right: 14px; border-left: 0;  border-top: 0; }
-
-/* Drop target */
-#dropzone {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 14px;
-  z-index: 3;
-  text-align: center;
-  padding: 24px;
-  transition: background .18s;
-}
-#dropzone.hidden { display: none; }
-#dropzone .glyph {
-  width: 54px; height: 54px;
-  border: 1px dashed var(--line);
-  border-radius: var(--r);
   display: grid;
   place-items: center;
-  color: var(--ink-faint);
-  transition: border-color .18s, color .18s, transform .18s;
+  padding: 24px;
+  z-index: 3;
 }
-#dropzone .lead { font-size: 14px; font-weight: 500; color: var(--ink-dim); }
-
-body.dragging #dropzone { background: rgba(242,163,60,.05); }
-body.dragging #dropzone .glyph {
-  border-color: var(--signal);
-  color: var(--signal);
-  transform: scale(1.06);
-}
-body.dragging #dropzone .lead { color: var(--signal); }
-
-/* Transient overlays */
-.overlay {
-  position: absolute;
-  top: 50%; left: 50%;
-  transform: translate(-50%,-50%);
-  z-index: 6;
-  font-family: var(--mono);
-  font-size: 12px;
-  padding: 11px 20px;
-  border-radius: var(--r);
-  background: rgba(14,16,18,.94);
-  border: 1px solid var(--line);
-  display: none;
-  max-width: 82%;
+#empty.hidden { display: none; }
+.empty-card {
+  width: min(420px, 100%);
   text-align: center;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  padding: 32px 28px 26px;
 }
-#loading { color: var(--signal); letter-spacing: .08em; }
-#error   { color: var(--alert); border-color: #4a1f22; }
+.empty-card svg.part { width: 40px; height: 40px; color: var(--ink-3); margin-bottom: 14px; }
+.empty-card h2 { font-size: 17px; font-weight: 600; margin-bottom: 6px; }
+.empty-card p { font-size: 14px; color: var(--ink-2); }
+.empty-card .row { display: flex; gap: 8px; justify-content: center; margin: 20px 0 14px; flex-wrap: wrap; }
+.empty-card .hint { font-size: 12px; color: var(--ink-3); }
 
-/* Viewport footer: interaction legend + view actions */
-#stagebar {
+/* Drag veil, shown whether or not a part is loaded */
+#veil {
   position: absolute;
-  left: 0; right: 0; bottom: 0;
+  inset: 12px;
+  z-index: 5;
+  display: none;
+  place-items: center;
+  border: 2px dashed var(--accent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent-bg) 80%, transparent);
+  color: var(--accent);
+  font-weight: 600;
+  pointer-events: none;
+}
+body.dragging #veil { display: grid; }
+
+/* Toast for loading and errors */
+#toast {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6;
+  display: none;
+  max-width: min(460px, 90%);
+  padding: 9px 14px;
+  font-size: 13px;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--r);
+  box-shadow: var(--shadow);
+}
+#toast.show { display: block; }
+#toast.error { color: var(--axis-x); border-color: var(--axis-x); }
+
+/* Viewport toolbar */
+#toolbar {
+  position: absolute;
+  left: 16px; right: 16px; bottom: 16px;
   z-index: 4;
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 10px 16px;
-  background: linear-gradient(to top, rgba(8,9,10,.92), transparent);
+  gap: 12px;
+  pointer-events: none;
 }
-#stagebar .legend {
+#toolbar > * { pointer-events: auto; }
+.hints {
   display: flex;
-  gap: 16px;
+  gap: 14px;
   flex-wrap: wrap;
-  color: var(--ink-faint);
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: .04em;
+  font-size: 12px;
+  color: var(--ink-2);
 }
-#stagebar .legend kbd {
-  font-family: var(--mono);
-  color: var(--ink-dim);
-  background: var(--raised);
+.hints span { display: inline-flex; align-items: center; gap: 5px; }
+#toolbar .spacer { flex: 1; }
+.tools {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 3px;
-  padding: 1px 5px;
-  font-size: 9.5px;
+  border-radius: 8px;
+  box-shadow: var(--shadow);
 }
-#stagebar .spacer { flex: 1; }
+.tools .btn { border-color: transparent; padding: 7px 10px; }
+.tools .btn kbd { margin-left: 2px; }
 
-/* ─────────────────────────  READOUT PANEL  ───────────────────────── */
+/* ---------- Properties panel ---------- */
 #panel {
-  width: 330px;
+  width: 340px;
   flex-shrink: 0;
-  background: var(--panel);
-  border-left: 1px solid var(--line);
-  overflow-y: auto;
   display: flex;
   flex-direction: column;
+  background: var(--surface);
+  border-left: 1px solid var(--line);
+  overflow-y: auto;
 }
-#panel::-webkit-scrollbar { width: 9px; }
-#panel::-webkit-scrollbar-track { background: var(--panel); }
-#panel::-webkit-scrollbar-thumb { background: var(--line); border-radius: 5px; }
 
-section {
-  padding: var(--pad);
-  border-bottom: 1px solid var(--line-soft);
-}
+section { padding: 18px 20px; border-bottom: 1px solid var(--line); }
 .sec-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  margin-bottom: 15px;
+  margin-bottom: 12px;
 }
+.sec-head h2 { font-size: 13px; font-weight: 600; color: var(--ink); }
 
-/* Unit selector — segmented, like a range switch */
-.units { display: flex; border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+.units {
+  display: flex;
+  padding: 2px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+}
 .units button {
-  font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: .06em;
-  padding: 4px 9px;
+  font: 500 12px/1 var(--sans);
+  padding: 5px 10px;
+  color: var(--ink-2);
   background: transparent;
   border: 0;
-  border-right: 1px solid var(--line);
-  color: var(--ink-faint);
+  border-radius: 4px;
   cursor: pointer;
-  transition: color .15s, background .15s;
 }
-.units button:last-child { border-right: 0; }
-.units button:hover { color: var(--ink-dim); }
-.units button.on { background: var(--signal); color: #17120a; font-weight: 600; }
+.units button:hover { color: var(--ink); }
+.units button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
 
-/* Primary measurement readouts. These get the largest type in the panel. */
-.readout { margin-bottom: 18px; }
-.readout:last-child { margin-bottom: 0; }
-.readout .caption { display: block; margin-bottom: 6px; }
-.readout .figure {
-  font-family: var(--mono);
-  font-size: 27px;
+.metric + .metric { margin-top: 14px; }
+.metric .label { font-size: 12px; color: var(--ink-3); margin-bottom: 2px; }
+.metric .value {
+  font-size: 24px;
   font-weight: 500;
-  letter-spacing: -.02em;
-  line-height: 1.05;
-  color: var(--ink);
+  letter-spacing: -.01em;
+  line-height: 1.2;
   word-break: break-all;
-  transition: color .3s;
 }
-.readout .figure.idle { color: var(--ink-faint); }
-.readout .figure.flash { color: var(--signal); transition: none; }
-.readout .unit {
-  font-family: var(--mono);
-  font-size: 11px;
-  font-weight: 400;
-  color: var(--ink-faint);
-  margin-left: 6px;
-  letter-spacing: 0;
-}
-.readout .sub {
-  font-family: var(--mono);
-  font-size: 10.5px;
-  color: var(--ink-faint);
-  margin-top: 5px;
-}
+.metric .value .u { font-size: 13px; font-weight: 400; color: var(--ink-3); margin-left: 4px; }
+.metric .sub { font-size: 12px; color: var(--ink-3); margin-top: 2px; }
+.idle { color: var(--ink-3); }
 
-/* Bounding box: colour-keyed to the axis gizmo in the viewport. */
-.axis-row {
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  padding: 8px 0;
-  border-bottom: 1px solid var(--line-soft);
-}
-.axis-row:last-child { border-bottom: 0; padding-bottom: 0; }
-.axis-row .key {
-  font-family: var(--mono);
-  font-size: 11px;
-  font-weight: 600;
-  width: 13px;
-  flex-shrink: 0;
-}
-.axis-row .bar {
-  flex: 1;
-  height: 3px;
-  background: var(--line-soft);
-  border-radius: 2px;
-  overflow: hidden;
-}
+#dims-total { font-size: 14px; font-weight: 500; margin-bottom: 10px; }
+
+.axis-row { display: grid; grid-template-columns: 14px 1fr 92px; align-items: center; gap: 10px; padding: 5px 0; }
+.axis-row .key { font: 600 12px var(--mono); }
+.axis-row .bar { height: 4px; background: var(--bg); border-radius: 2px; overflow: hidden; }
 .axis-row .bar i {
   display: block;
   height: 100%;
-  width: 0;
   border-radius: 2px;
-  transition: width .5s cubic-bezier(.2,.7,.3,1);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform .4s cubic-bezier(.2,.7,.3,1);
 }
-.axis-row .val {
-  font-family: var(--mono);
-  font-size: 12.5px;
-  color: var(--ink);
-  min-width: 82px;
-  text-align: right;
-  flex-shrink: 0;
-}
-.axis-row .val.idle { color: var(--ink-faint); }
+.axis-row .val { font-size: 13px; text-align: right; }
 #ax-x .key { color: var(--axis-x); } #ax-x .bar i { background: var(--axis-x); }
 #ax-y .key { color: var(--axis-y); } #ax-y .bar i { background: var(--axis-y); }
 #ax-z .key { color: var(--axis-z); } #ax-z .bar i { background: var(--axis-z); }
 
-/* Mesh integrity rows */
-.kv {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 12px;
-  padding: 7px 0;
-  border-bottom: 1px solid var(--line-soft);
-}
-.kv:last-child { border-bottom: 0; padding-bottom: 0; }
-.kv .k { font-size: 12px; color: var(--ink-dim); }
-.kv .v { font-family: var(--mono); font-size: 12px; color: var(--ink); text-align: right; }
-.kv .v.idle { color: var(--ink-faint); }
-.kv .v.ok   { color: var(--axis-y); }
-.kv .v.warn { color: var(--signal); }
+dl.kv { display: grid; grid-template-columns: 1fr auto; row-gap: 9px; column-gap: 12px; font-size: 13px; }
+dl.kv dt { color: var(--ink-2); }
+dl.kv dd { text-align: right; }
 
-/* A watertight mesh is what makes the volume figure trustworthy, so the
-   caveat sits directly under the integrity block rather than in a footnote. */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--ink-3);
+}
+.badge::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.badge.ok   { background: var(--ok-bg);   color: var(--ok); }
+.badge.warn { background: var(--warn-bg); color: var(--warn); }
+
+/* A closed surface is what makes the volume trustworthy, so the caveat
+   sits right under the mesh check rather than in a footnote. */
 .note {
   margin-top: 12px;
-  font-size: 11px;
-  line-height: 1.55;
-  color: var(--ink-faint);
-  border-left: 2px solid var(--line);
-  padding-left: 10px;
+  font-size: 13px;
+  color: var(--ink-2);
+  background: var(--bg);
+  border-radius: var(--r);
+  padding: 9px 11px;
 }
-.note.warn { border-left-color: var(--signal); color: var(--ink-dim); }
+.note.warn { background: var(--warn-bg); color: var(--warn); }
 .note.hidden { display: none; }
 
-section.actions { border-bottom: 0; display: flex; gap: 8px; }
-section.actions .btn { flex: 1; }
+section.actions { display: flex; gap: 8px; }
+section.actions .btn { flex: 1; justify-content: center; }
 
-/* Staggered reveal on load. Runs once, then nothing animates again. */
-@keyframes rise { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: none; } }
-#panel > section { animation: rise .5s cubic-bezier(.2,.7,.3,1) backwards; }
-#panel > section:nth-child(1) { animation-delay: .05s; }
-#panel > section:nth-child(2) { animation-delay: .11s; }
-#panel > section:nth-child(3) { animation-delay: .17s; }
-#panel > section:nth-child(4) { animation-delay: .23s; }
+.panel-foot {
+  margin-top: auto;
+  padding: 14px 20px;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+.panel-foot a { color: var(--ink-2); }
 
 @media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after { animation: none !important; transition: none !important; }
+  *, *::before, *::after { transition: none !important; }
 }
 
 @media (max-width: 820px) {
   main { flex-direction: column; }
-  #panel { width: 100%; border-left: 0; border-top: 1px solid var(--line); max-height: 52vh; }
-  #stage { min-height: 300px; }
-  header { gap: 12px; }
-  .wordmark span { display: none; }
+  #stage { min-height: 320px; }
+  #panel { width: 100%; border-left: 0; border-top: 1px solid var(--line); max-height: 50vh; }
+  header { padding: 0 14px; gap: 10px; }
+  .brand h1, #filesize, .hints, #btn-source span { display: none; }
+  .file::before { display: none; }
 }
 </style>
 </head>
 <body>
 
 <header>
-  <div class="wordmark"><b>STL Geometry Inspector</b><span>Metrology</span></div>
-  <div class="divider"></div>
-  <div id="filename" class="empty">No file loaded</div>
-  <label for="file-input" class="btn primary" role="button">Open STL</label>
-  <input type="file" id="file-input" accept=".stl,model/stl">
+  <div class="brand">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true">
+      <path d="M12 2.8 3.5 7.4v9.2l8.5 4.6 8.5-4.6V7.4L12 2.8Z"/><path d="m3.5 7.4 8.5 4.6 8.5-4.6M12 12v9.2"/>
+    </svg>
+    <h1>STL Geometry Inspector</h1>
+  </div>
+  <div class="file">
+    <span id="filename" class="empty">No file open</span>
+    <span id="filesize" class="num"></span>
+  </div>
+  <div class="header-actions">
+    <a class="btn ghost" id="btn-source" href="https://github.com/Deivid-Negoita/stl-geometry-inspector" target="_blank" rel="noopener">
+      <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0a8 8 0 0 0-2.53 15.59c.4.07.55-.17.55-.38v-1.33c-2.23.48-2.7-1.07-2.7-1.07-.36-.92-.89-1.17-.89-1.17-.73-.5.06-.49.06-.49.8.06 1.23.83 1.23.83.72 1.22 1.87.87 2.33.66.07-.52.28-.87.5-1.07-1.78-.2-3.65-.89-3.65-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.6 7.6 0 0 1 4 0c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.28.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48v2.2c0 .21.15.46.55.38A8 8 0 0 0 8 0Z"/></svg>
+      <span>Source</span>
+    </a>
+    <button class="btn primary" id="btn-open" type="button">Open STL</button>
+    <input type="file" id="file-input" accept=".stl,model/stl">
+  </div>
 </header>
 
 <main>
   <div id="stage">
-    <div class="reg tl"></div><div class="reg tr"></div>
-    <div class="reg bl"></div><div class="reg br"></div>
-
-    <div id="dropzone">
-      <div class="glyph">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 3 3 7.5v9L12 21l9-4.5v-9L12 3Z"/><path d="m3 7.5 9 4.5 9-4.5"/><path d="M12 12v9"/>
+    <div id="empty">
+      <div class="empty-card">
+        <svg class="part" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 2.8 3.5 7.4v9.2l8.5 4.6 8.5-4.6V7.4L12 2.8Z"/><path d="m3.5 7.4 8.5 4.6 8.5-4.6M12 12v9.2"/>
         </svg>
-      </div>
-      <div>
-        <div class="lead">Drop an STL file here</div>
-        <div class="caption" style="margin-top:7px">Binary or ASCII &nbsp;·&nbsp; nothing leaves this browser</div>
+        <h2>Open an STL to measure it</h2>
+        <p>Surface area, volume, bounding box, and whether the mesh is closed.</p>
+        <div class="row">
+          <button class="btn primary" id="btn-open-2" type="button">Choose file</button>
+          <button class="btn" id="btn-sample" type="button">Try a sample part</button>
+        </div>
+        <div class="hint">Or drop a file here. Binary and ASCII STL. The file stays in your browser.</div>
       </div>
     </div>
 
-    <div id="loading" class="overlay">READING MESH…</div>
-    <div id="error" class="overlay"></div>
+    <div id="veil">Drop the STL to measure it</div>
+    <div id="toast" role="status" aria-live="polite"></div>
 
-    <div id="stagebar">
-      <div class="legend">
-        <span>Drag <kbd>LMB</kbd> orbit</span>
-        <span><kbd>RMB</kbd> pan</span>
+    <div id="toolbar">
+      <div class="hints">
+        <span><kbd>Left drag</kbd> orbit</span>
+        <span><kbd>Right drag</kbd> pan</span>
         <span><kbd>Scroll</kbd> zoom</span>
       </div>
       <div class="spacer"></div>
-      <button class="btn" id="btn-wire" disabled>Wireframe</button>
-      <button class="btn" id="btn-fit" disabled>Fit view</button>
+      <div class="tools">
+        <button class="btn" id="btn-fit" type="button" disabled>Fit view <kbd>F</kbd></button>
+        <button class="btn" id="btn-wire" type="button" aria-pressed="false" disabled>Wireframe <kbd>W</kbd></button>
+      </div>
     </div>
   </div>
 
-  <aside id="panel">
-
+  <aside id="panel" aria-label="Measurements">
     <section>
       <div class="sec-head">
-        <span class="caption">Measurements</span>
-        <div class="units" id="units">
-          <button data-u="mm" class="on">mm</button>
-          <button data-u="cm">cm</button>
-          <button data-u="in">in</button>
+        <h2>Measurements</h2>
+        <div class="units" id="units" role="group" aria-label="Units">
+          <button type="button" data-u="mm" aria-pressed="true">mm</button>
+          <button type="button" data-u="cm" aria-pressed="false">cm</button>
+          <button type="button" data-u="in" aria-pressed="false">in</button>
         </div>
       </div>
 
-      <div class="readout">
-        <span class="caption">Surface area</span>
-        <div class="figure idle" id="area">—<span class="unit" id="area-u">mm²</span></div>
+      <div class="metric">
+        <div class="label">Surface area</div>
+        <div class="value num idle" id="area">–<span class="u" id="area-u">mm²</span></div>
       </div>
-
-      <div class="readout">
-        <span class="caption">Volume</span>
-        <div class="figure idle" id="volume">—<span class="unit" id="volume-u">mm³</span></div>
-        <div class="sub" id="volume-sub">Requires a closed mesh</div>
+      <div class="metric">
+        <div class="label">Volume</div>
+        <div class="value num idle" id="volume">–<span class="u" id="volume-u">mm³</span></div>
+        <div class="sub num" id="volume-sub">Needs a closed mesh</div>
       </div>
     </section>
 
     <section>
-      <div class="sec-head"><span class="caption">Bounding box</span></div>
-      <div class="axis-row" id="ax-x"><span class="key">X</span><span class="bar"><i></i></span><span class="val idle">—</span></div>
-      <div class="axis-row" id="ax-y"><span class="key">Y</span><span class="bar"><i></i></span><span class="val idle">—</span></div>
-      <div class="axis-row" id="ax-z"><span class="key">Z</span><span class="bar"><i></i></span><span class="val idle">—</span></div>
+      <div class="sec-head"><h2>Bounding box</h2></div>
+      <div id="dims-total" class="num idle">–</div>
+      <div class="axis-row" id="ax-x"><span class="key">X</span><span class="bar"><i></i></span><span class="val num idle">–</span></div>
+      <div class="axis-row" id="ax-y"><span class="key">Y</span><span class="bar"><i></i></span><span class="val num idle">–</span></div>
+      <div class="axis-row" id="ax-z"><span class="key">Z</span><span class="bar"><i></i></span><span class="val num idle">–</span></div>
     </section>
 
     <section>
-      <div class="sec-head"><span class="caption">Mesh integrity</span></div>
-      <div class="kv"><span class="k">Triangles</span><span class="v idle" id="tris">—</span></div>
-      <div class="kv"><span class="k">Open edges</span><span class="v idle" id="open-edges">—</span></div>
-      <div class="kv"><span class="k">Watertight</span><span class="v idle" id="watertight">—</span></div>
+      <div class="sec-head"><h2>Mesh</h2></div>
+      <dl class="kv">
+        <dt>Triangles</dt><dd class="num idle" id="tris">–</dd>
+        <dt>Open edges</dt><dd class="num idle" id="open-edges">–</dd>
+        <dt>Closed surface</dt><dd><span class="badge" id="watertight">No part</span></dd>
+      </dl>
       <div class="note hidden" id="integrity-note"></div>
     </section>
 
     <section class="actions">
-      <button class="btn" id="btn-copy" disabled>Copy report</button>
-      <button class="btn" id="btn-clear" disabled>Clear</button>
+      <button class="btn" id="btn-copy" type="button" disabled>Copy report</button>
+      <button class="btn ghost" id="btn-clear" type="button" disabled>Clear</button>
     </section>
 
+    <div class="panel-foot">
+      Units assume the file is in millimetres, the STL convention.
+      <a href="https://github.com/Deivid-Negoita/stl-geometry-inspector#what-it-measures" target="_blank" rel="noopener">How each figure is computed</a>
+    </div>
   </aside>
 </main>
 
@@ -522,47 +517,65 @@ section.actions .btn { flex: 1; }
 
 <script type="module">
 import * as THREE from 'three';
-import { STLLoader }    from 'three/addons/loaders/STLLoader.js';
+import { STLLoader }     from 'three/addons/loaders/STLLoader.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-/* ═══════════════ scene ═══════════════ */
-const stage = document.getElementById('stage');
+const $ = id => document.getElementById(id);
+const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 
+/* ---------- scene ---------- */
+const stage = $('stage');
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x08090a);
 
-const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100000);
+const camera = new THREE.PerspectiveCamera(40, 1, 0.1, 100000);
 camera.position.set(180, 150, 180);
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-stage.appendChild(renderer.domElement);
+stage.prepend(renderer.domElement);
 
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
-controls.dampingFactor = 0.06;
+controls.dampingFactor = 0.08;
 controls.minDistance = 1;
 controls.maxDistance = 40000;
 
-scene.add(new THREE.AmbientLight(0xffffff, 0.55));
-const key = new THREE.DirectionalLight(0xffffff, 1.15);
-key.position.set(120, 180, 140);
+scene.add(new THREE.HemisphereLight(0xffffff, 0x7d858f, 1.1));
+const key = new THREE.DirectionalLight(0xffffff, 1.0);
+key.position.set(120, 200, 150);
 scene.add(key);
-const fill = new THREE.DirectionalLight(0x8fa6c4, 0.35);
-fill.position.set(-140, -60, -120);
-scene.add(fill);
+const rim = new THREE.DirectionalLight(0xffffff, 0.35);
+rim.position.set(-150, 60, -140);
+scene.add(rim);
 
-// The grid and the gizmo are reference furniture for a loaded part. With an
-// empty stage they only compete with the drop prompt, so they stay hidden
-// until there is something to measure against.
-const grid = new THREE.GridHelper(400, 40, 0x2a2f35, 0x191d21);
-grid.visible = false;
-scene.add(grid);
+// Grid and gizmo only mean something next to a part, so they stay hidden
+// until one is loaded.
+let grid = null, gridSpan = 400, gridDiv = 40;
 const axes = new THREE.AxesHelper(60);
 axes.visible = false;
 scene.add(axes);
 
-let mesh = null;
+function buildGrid() {
+  const visible = grid ? grid.visible : false;
+  const y = grid ? grid.position.y : 0;
+  if (grid) { scene.remove(grid); grid.geometry.dispose(); grid.material.dispose(); }
+  grid = new THREE.GridHelper(gridSpan, gridDiv, css('--grid-major'), css('--grid-minor'));
+  grid.visible = visible;
+  grid.position.y = y;
+  scene.add(grid);
+}
+
+let mesh = null, edges = null;
+
+// Colours come from CSS, so a system theme switch restyles the scene too.
+function applyTheme() {
+  scene.background = new THREE.Color(css('--viewport'));
+  if (mesh) mesh.material.color.set(css('--mesh'));
+  if (edges) edges.material.color.set(css('--edge'));
+  buildGrid();
+}
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
+applyTheme();
 
 function resize() {
   const w = stage.clientWidth, h = stage.clientHeight;
@@ -580,9 +593,9 @@ resize();
   renderer.render(scene, camera);
 })();
 
-/* ═══════════════ units ═══════════════
+/* ---------- units ----------
    An STL carries no unit. The convention is millimetres, so mm is the base
-   and the other scales are pure conversions of that assumption. */
+   and the other scales are conversions of that assumption. */
 const UNITS = {
   mm: { len: 1,      L: 'mm', A: 'mm²', V: 'mm³' },
   cm: { len: 0.1,    L: 'cm', A: 'cm²', V: 'cm³' },
@@ -590,15 +603,16 @@ const UNITS = {
 };
 let unit = 'mm';
 
-/* Raw measurements in base units, kept so a unit change is a re-render
-   rather than a re-measure of the mesh. */
+// Raw measurements in base units, so a unit change re-renders instead of
+// re-measuring the mesh.
 let M = null;
+let fileLabel = '';
 
-/* ═══════════════ measurement ═══════════════ */
+/* ---------- measurement ---------- */
 
 // Signed volume of the tetrahedron formed by a triangle and the origin.
 // Summed over a closed surface, the outside contributions cancel and what
-// remains is the enclosed volume — which is why an open mesh gives nonsense.
+// remains is the enclosed volume, which is why an open mesh gives nonsense.
 function tetraVolume(a, b, c) {
   return (
     -c.x * b.y * a.z + b.x * c.y * a.z + c.x * a.y * b.z
@@ -606,8 +620,8 @@ function tetraVolume(a, b, c) {
   ) / 6;
 }
 
-// Count edges used by exactly one triangle. Zero of them means the surface
-// closes on itself and the volume figure can be trusted.
+// Count edges used by exactly one triangle. Zero means the surface closes on
+// itself and the volume can be trusted.
 function countOpenEdges(pos, triCount) {
   if (triCount > 600000) return null;          // too slow to be worth it
   const seen = new Map();
@@ -649,21 +663,20 @@ function measure(geometry) {
 
   geometry.computeBoundingBox();
   const size = geometry.boundingBox.getSize(new THREE.Vector3());
-  const openEdges = countOpenEdges(pos, triCount);
 
   return {
     area,
     volume: Math.abs(volume),
     dims: { x: size.x, y: size.y, z: size.z },
     triCount,
-    openEdges
+    openEdges: countOpenEdges(pos, triCount)
   };
 }
 
-/* ═══════════════ rendering the readout ═══════════════ */
+/* ---------- readout ---------- */
 
 function fmt(n) {
-  if (!isFinite(n)) return '—';
+  if (!isFinite(n)) return '–';
   const abs = Math.abs(n);
   let d = 2;
   if (abs === 0)        d = 2;
@@ -675,115 +688,114 @@ function fmt(n) {
   return n.toLocaleString(undefined, { minimumFractionDigits: d, maximumFractionDigits: d });
 }
 
-function flash(el) {
-  el.classList.remove('flash');
-  void el.offsetWidth;                 // restart the transition
-  el.classList.add('flash');
-  setTimeout(() => el.classList.remove('flash'), 240);
+function setBadge(state, text) {
+  const b = $('watertight');
+  b.className = 'badge' + (state ? ' ' + state : '');
+  b.textContent = text;
 }
-
-const $ = id => document.getElementById(id);
 
 function render() {
   const u = UNITS[unit];
   $('area-u').textContent   = u.A;
   $('volume-u').textContent = u.V;
+  const note = $('integrity-note');
 
   if (!M) {
-    ['area', 'volume'].forEach(id => {
-      const el = $(id);
-      el.classList.add('idle');
-      el.firstChild.nodeValue = '—';
-    });
-    $('volume-sub').textContent = 'Requires a closed mesh';
+    ['area', 'volume'].forEach(id => { $(id).classList.add('idle'); $(id).firstChild.nodeValue = '–'; });
+    $('volume-sub').textContent = 'Needs a closed mesh';
+    $('dims-total').textContent = '–';
+    $('dims-total').classList.add('idle');
     ['x', 'y', 'z'].forEach(k => {
       const row = $('ax-' + k);
-      row.querySelector('.val').textContent = '—';
+      row.querySelector('.val').textContent = '–';
       row.querySelector('.val').classList.add('idle');
-      row.querySelector('.bar i').style.width = '0';
+      row.querySelector('.bar i').style.transform = 'scaleX(0)';
     });
-    ['tris', 'open-edges', 'watertight'].forEach(id => {
-      $(id).textContent = '—';
-      $(id).className = 'v idle';
-    });
-    $('integrity-note').className = 'note hidden';
+    ['tris', 'open-edges'].forEach(id => { $(id).textContent = '–'; $(id).className = 'num idle'; });
+    setBadge('', 'No part');
+    note.className = 'note hidden';
     return;
   }
 
-  const areaEl = $('area'), volEl = $('volume');
-  areaEl.classList.remove('idle');
-  volEl.classList.remove('idle');
-  areaEl.firstChild.nodeValue = fmt(M.area * u.len ** 2);
-  volEl.firstChild.nodeValue  = fmt(M.volume * u.len ** 3);
-  flash(areaEl); flash(volEl);
+  $('area').classList.remove('idle');
+  $('volume').classList.remove('idle');
+  $('area').firstChild.nodeValue   = fmt(M.area * u.len ** 2);
+  $('volume').firstChild.nodeValue = fmt(M.volume * u.len ** 3);
 
-  // Volume is also useful as a print-material figure, so show cm³ alongside.
-  const cm3 = M.volume / 1000;
-  $('volume-sub').textContent = unit === 'cm'
-    ? `${fmt(M.volume)} mm³`
-    : `${fmt(cm3)} cm³`;
+  // cm³ is the figure a print quote or a material estimate uses.
+  $('volume-sub').textContent = unit === 'cm' ? `${fmt(M.volume)} mm³` : `${fmt(M.volume / 1000)} cm³`;
 
-  const maxDim = Math.max(M.dims.x, M.dims.y, M.dims.z) || 1;
+  const d = M.dims;
+  $('dims-total').classList.remove('idle');
+  $('dims-total').textContent = `${fmt(d.x * u.len)} × ${fmt(d.y * u.len)} × ${fmt(d.z * u.len)} ${u.L}`;
+  const maxDim = Math.max(d.x, d.y, d.z) || 1;
   ['x', 'y', 'z'].forEach(k => {
     const row = $('ax-' + k);
     const val = row.querySelector('.val');
     val.classList.remove('idle');
-    val.textContent = `${fmt(M.dims[k] * u.len)} ${u.L}`;
-    row.querySelector('.bar i').style.width = (M.dims[k] / maxDim * 100) + '%';
+    val.textContent = `${fmt(d[k] * u.len)} ${u.L}`;
+    row.querySelector('.bar i').style.transform = `scaleX(${d[k] / maxDim})`;
   });
 
-  $('tris').className = 'v';
+  $('tris').className = 'num';
   $('tris').textContent = M.triCount.toLocaleString();
 
-  const note = $('integrity-note');
+  const oe = $('open-edges');
   if (M.openEdges === null) {
-    $('open-edges').className = 'v idle';
-    $('open-edges').textContent = 'not checked';
-    $('watertight').className = 'v idle';
-    $('watertight').textContent = 'unknown';
+    oe.className = 'num idle';
+    oe.textContent = 'Not checked';
+    setBadge('', 'Unknown');
     note.className = 'note';
-    note.textContent = 'Mesh too large to check edge by edge. The volume assumes the surface is closed.';
+    note.textContent = 'This mesh is too large to check edge by edge. The volume assumes the surface is closed.';
   } else if (M.openEdges === 0) {
-    $('open-edges').className = 'v ok';
-    $('open-edges').textContent = '0';
-    $('watertight').className = 'v ok';
-    $('watertight').textContent = 'yes';
+    oe.className = 'num';
+    oe.textContent = '0';
+    setBadge('ok', 'Closed');
     note.className = 'note hidden';
   } else {
-    $('open-edges').className = 'v warn';
-    $('open-edges').textContent = M.openEdges.toLocaleString();
-    $('watertight').className = 'v warn';
-    $('watertight').textContent = 'no';
+    oe.className = 'num';
+    oe.textContent = M.openEdges.toLocaleString();
+    setBadge('warn', 'Open');
     note.className = 'note warn';
-    note.textContent = 'The surface does not close, so the volume figure is unreliable. Surface area and bounding box remain valid.';
+    note.textContent = 'The surface has holes, so the volume is unreliable. Surface area and bounding box are still correct.';
   }
 }
 
-/* ═══════════════ loading ═══════════════ */
-const loading = $('loading'), errorBox = $('error'), dropzone = $('dropzone');
+/* ---------- loading ---------- */
+const empty = $('empty'), toast = $('toast');
+let toastTimer = 0;
 
-function showError(msg) {
-  errorBox.textContent = msg;
-  errorBox.style.display = 'block';
-  setTimeout(() => { errorBox.style.display = 'none'; }, 5200);
+function showToast(msg, isError) {
+  clearTimeout(toastTimer);
+  toast.textContent = msg;
+  toast.className = 'show' + (isError ? ' error' : '');
+  if (isError) toastTimer = setTimeout(() => { toast.className = ''; }, 5200);
 }
+const hideToast = () => { toast.className = ''; };
 
-function setBusy(on) { loading.style.display = on ? 'block' : 'none'; }
+const TOOL_BUTTONS = ['btn-copy', 'btn-clear', 'btn-fit', 'btn-wire'];
+
+function disposePart() {
+  for (const o of [mesh, edges]) {
+    if (!o) continue;
+    scene.remove(o);
+    o.geometry.dispose();
+    o.material.dispose();
+  }
+  mesh = edges = null;
+}
 
 function clearModel() {
-  if (mesh) {
-    scene.remove(mesh);
-    mesh.geometry.dispose();
-    mesh.material.dispose();
-    mesh = null;
-  }
+  disposePart();
   M = null;
   grid.visible = false;
   axes.visible = false;
-  dropzone.classList.remove('hidden');
-  $('filename').textContent = 'No file loaded';
+  empty.classList.remove('hidden');
+  $('filename').textContent = 'No file open';
   $('filename').classList.add('empty');
-  ['btn-copy', 'btn-clear', 'btn-fit', 'btn-wire'].forEach(id => $(id).disabled = true);
+  $('filesize').textContent = '';
+  $('btn-wire').setAttribute('aria-pressed', 'false');
+  TOOL_BUTTONS.forEach(id => $(id).disabled = true);
   render();
 }
 
@@ -793,98 +805,132 @@ function fitView() {
   const size   = box.getSize(new THREE.Vector3());
   const center = box.getCenter(new THREE.Vector3());
   const maxDim = Math.max(size.x, size.y, size.z) || 1;
-  const dist   = (maxDim / 2) / Math.tan((camera.fov * Math.PI / 180) / 2) * 1.6;
+  const dist   = (maxDim / 2) / Math.tan((camera.fov * Math.PI / 180) / 2) * 1.7;
 
-  camera.position.set(center.x + dist * .6, center.y + dist * .5, center.z + dist * .8);
+  camera.position.set(center.x + dist * .62, center.y + dist * .48, center.z + dist * .78);
   camera.near = Math.max(dist / 1000, 0.01);
   camera.far  = dist * 100;
   camera.updateProjectionMatrix();
   controls.target.copy(center);
   controls.update();
 
-  // Keep the reference grid and gizmo proportional to the part on screen.
-  const unitStep = Math.pow(10, Math.round(Math.log10(maxDim)) - 1) || 1;
-  const span = Math.ceil(maxDim / unitStep) * unitStep * 2;
-  grid.geometry.dispose();
-  const fresh = new THREE.GridHelper(span, Math.min(Math.round(span / unitStep), 80), 0x2a2f35, 0x191d21);
-  grid.geometry = fresh.geometry;
-  fresh.material.dispose();
-
-  // Gizmo arms read as an origin marker, not a second object: a little over
-  // a third of the largest extent keeps them clear of the part's silhouette.
-  axes.scale.setScalar((maxDim * 0.35) / 60 || 1);
+  // Keep the grid proportional to the part, and sit it under the part.
+  const step = Math.pow(10, Math.round(Math.log10(maxDim)) - 1) || 1;
+  gridSpan = Math.ceil(maxDim / step) * step * 2;
+  gridDiv  = Math.min(Math.round(gridSpan / step), 80);
+  buildGrid();
+  grid.position.y = box.min.y;
   grid.visible = true;
+
+  axes.scale.setScalar((maxDim * 0.35) / 60 || 1);
+  axes.position.set(0, box.min.y, 0);
   axes.visible = true;
+}
+
+function formatBytes(n) {
+  return n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(1)} KB` : `${(n / 1048576).toFixed(1)} MB`;
+}
+
+function show(buffer, name) {
+  const geometry = new STLLoader().parse(buffer);
+  disposePart();
+
+  // Centre on the origin so orbiting feels anchored. Area, signed volume and
+  // bounding-box extents are all translation invariant, so this changes nothing.
+  geometry.computeBoundingBox();
+  const c = geometry.boundingBox.getCenter(new THREE.Vector3());
+  geometry.translate(-c.x, -c.y, -c.z);
+  geometry.computeVertexNormals();
+
+  mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({
+    color: css('--mesh'),
+    roughness: 0.6,
+    metalness: 0.1,
+    side: THREE.DoubleSide,
+    polygonOffset: true,
+    polygonOffsetFactor: 1,
+    polygonOffsetUnits: 1
+  }));
+  scene.add(mesh);
+
+  M = measure(geometry);
+
+  // Feature edges give the part a drawn, CAD-like outline.
+  // ponytail: skipped above 300k triangles, where EdgesGeometry stalls the tab; move it to a worker if big scans matter.
+  if (M.triCount <= 300000) {
+    edges = new THREE.LineSegments(
+      new THREE.EdgesGeometry(geometry, 25),
+      new THREE.LineBasicMaterial({ color: css('--edge'), transparent: true, opacity: 0.55 })
+    );
+    scene.add(edges);
+  }
+
+  fileLabel = name;
+  render();
+  fitView();
+
+  empty.classList.add('hidden');
+  $('filename').textContent = name;
+  $('filename').classList.remove('empty');
+  $('filesize').textContent = formatBytes(buffer.byteLength);
+  $('btn-wire').setAttribute('aria-pressed', 'false');
+  TOOL_BUTTONS.forEach(id => $(id).disabled = false);
 }
 
 function load(file) {
   if (!file) return;
-  if (!/\.stl$/i.test(file.name)) { showError('That is not an .stl file.'); return; }
+  if (!/\.stl$/i.test(file.name)) { showToast(`${file.name} is not an .stl file.`, true); return; }
 
-  setBusy(true);
+  showToast('Reading mesh…');
   const reader = new FileReader();
-
-  reader.onerror = () => { setBusy(false); showError('Could not read the file.'); };
-
+  reader.onerror = () => showToast('Could not read the file.', true);
   reader.onload = ev => {
     try {
-      const geometry = new STLLoader().parse(ev.target.result);
-
-      if (mesh) {
-        scene.remove(mesh);
-        mesh.geometry.dispose();
-        mesh.material.dispose();
-      }
-
-      // Centre on the origin so orbiting feels anchored. Signed volume,
-      // surface area and bounding-box extents are all translation invariant,
-      // so measuring after the shift changes nothing.
-      geometry.computeBoundingBox();
-      const c = geometry.boundingBox.getCenter(new THREE.Vector3());
-      geometry.translate(-c.x, -c.y, -c.z);
-      geometry.computeVertexNormals();
-
-      mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({
-        color: 0x9aa4ad,
-        roughness: 0.55,
-        metalness: 0.18,
-        side: THREE.DoubleSide
-      }));
-      scene.add(mesh);
-
-      M = measure(geometry);
-      render();
-      fitView();
-
-      dropzone.classList.add('hidden');
-      $('filename').textContent = file.name;
-      $('filename').classList.remove('empty');
-      ['btn-copy', 'btn-clear', 'btn-fit', 'btn-wire'].forEach(id => $(id).disabled = false);
-
+      show(ev.target.result, file.name);
+      hideToast();
     } catch (err) {
       console.error(err);
-      showError('Could not parse this STL: ' + err.message);
-    } finally {
-      setBusy(false);
+      showToast('Could not parse this STL: ' + err.message, true);
     }
   };
-
   reader.readAsArrayBuffer(file);
 }
 
-/* ═══════════════ wiring ═══════════════ */
+async function loadSample() {
+  showToast('Loading sample…');
+  try {
+    const res = await fetch('samples/calibration-box.stl');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    show(await res.arrayBuffer(), 'calibration-box.stl');
+    hideToast();
+  } catch (err) {
+    console.error(err);
+    showToast('Could not load the sample: ' + err.message, true);
+  }
+}
+
+/* ---------- wiring ---------- */
+const openPicker = () => $('file-input').click();
+$('btn-open').addEventListener('click', openPicker);
+$('btn-open-2').addEventListener('click', openPicker);
+$('btn-sample').addEventListener('click', loadSample);
 $('file-input').addEventListener('change', e => { load(e.target.files[0]); e.target.value = ''; });
 
-['dragenter', 'dragover'].forEach(t =>
-  stage.addEventListener(t, e => { e.preventDefault(); document.body.classList.add('dragging'); }));
-['dragleave', 'drop'].forEach(t =>
-  stage.addEventListener(t, e => { e.preventDefault(); document.body.classList.remove('dragging'); }));
-stage.addEventListener('drop', e => load(e.dataTransfer.files[0]));
+// dragleave fires when crossing child elements, so count enter/leave pairs.
+let dragDepth = 0;
+stage.addEventListener('dragenter', e => { e.preventDefault(); dragDepth++; document.body.classList.add('dragging'); });
+stage.addEventListener('dragover',  e => e.preventDefault());
+stage.addEventListener('dragleave', () => { if (--dragDepth <= 0) { dragDepth = 0; document.body.classList.remove('dragging'); } });
+stage.addEventListener('drop', e => {
+  e.preventDefault();
+  dragDepth = 0;
+  document.body.classList.remove('dragging');
+  load(e.dataTransfer.files[0]);
+});
 
 document.querySelectorAll('#units button').forEach(b =>
   b.addEventListener('click', () => {
-    document.querySelectorAll('#units button').forEach(x => x.classList.remove('on'));
-    b.classList.add('on');
+    document.querySelectorAll('#units button').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
     unit = b.dataset.u;
     render();
   }));
@@ -894,20 +940,22 @@ $('btn-clear').addEventListener('click', clearModel);
 
 $('btn-wire').addEventListener('click', () => {
   if (!mesh) return;
-  mesh.material.wireframe = !mesh.material.wireframe;
-  $('btn-wire').textContent = mesh.material.wireframe ? 'Shaded' : 'Wireframe';
+  const on = !mesh.material.wireframe;
+  mesh.material.wireframe = on;
+  if (edges) edges.visible = !on;
+  $('btn-wire').setAttribute('aria-pressed', String(on));
 });
 
 $('btn-copy').addEventListener('click', async () => {
   if (!M) return;
   const u = UNITS[unit];
   const report = [
-    `File:          ${$('filename').textContent}`,
+    `File:          ${fileLabel}`,
     `Surface area:  ${fmt(M.area * u.len ** 2)} ${u.A}`,
     `Volume:        ${fmt(M.volume * u.len ** 3)} ${u.V}`,
     `Bounding box:  ${fmt(M.dims.x * u.len)} × ${fmt(M.dims.y * u.len)} × ${fmt(M.dims.z * u.len)} ${u.L}`,
     `Triangles:     ${M.triCount.toLocaleString()}`,
-    `Watertight:    ${M.openEdges === null ? 'unknown' : M.openEdges === 0 ? 'yes' : `no (${M.openEdges} open edges)`}`
+    `Closed:        ${M.openEdges === null ? 'unknown' : M.openEdges === 0 ? 'yes' : `no (${M.openEdges} open edges)`}`
   ].join('\n');
 
   const btn = $('btn-copy');
@@ -921,7 +969,7 @@ $('btn-copy').addEventListener('click', async () => {
 });
 
 addEventListener('keydown', e => {
-  if (e.target.matches('input, textarea')) return;
+  if (e.ctrlKey || e.metaKey || e.altKey || e.target.matches('input, textarea')) return;
   const k = e.key.toLowerCase();
   if (k === 'f') fitView();
   if (k === 'w') $('btn-wire').click();

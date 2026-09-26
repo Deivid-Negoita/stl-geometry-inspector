@@ -1,15 +1,15 @@
 # STL Geometry Inspector
 
-Browser-based geometric analysis of STL meshes. Drop in a part and read its
-surface area, volume, bounding box and watertightness. One HTML file, no build
+Browser-based geometric analysis of STL meshes. Open a part and read its
+surface area, volume, bounding box, and whether the mesh is closed. One HTML file, no build
 step, and the file never leaves the browser.
 
 ![The inspector with a part loaded](docs/images/inspector.png)
 
 This began as the geometry engine behind a 3D-printing quote tool: the customer
 uploads a part, the page measures it, and the price follows from the volume.
-That measurement layer is the useful, reusable half, so this repository keeps
-only that part. The pricing and the order flow are gone.
+This repository keeps only the measurement code. The pricing and the order
+flow are gone.
 
 ---
 
@@ -31,9 +31,9 @@ repository. `.github/workflows/pages.yml` publishes the root on every push to
 
 | Key | Action |
 |---|---|
-| Drag `LMB` | Orbit |
-| Drag `RMB` | Pan |
-| `Scroll` | Zoom |
+| Left drag | Orbit |
+| Right drag | Pan |
+| Scroll | Zoom |
 | `F` | Fit the view to the part |
 | `W` | Toggle wireframe |
 
@@ -65,15 +65,16 @@ and the volume figure is flagged as unreliable rather than quietly shown.
 ## Verify it
 
 `samples/calibration-box.stl` is a 40 × 20 × 10 mm box written from known
-values, so the expected output is arithmetic rather than opinion:
+values, so every expected figure can be checked by hand. **Try a sample part**
+on the start screen loads it.
 
 | Property | Expected |
 |---|---|
-| Surface area | 2,800.00 mm² |
-| Volume | 8,000.00 mm³ (8.00 cm³) |
+| Surface area | 2,800.0 mm² |
+| Volume | 8,000.0 mm³ (8.00 cm³) |
 | Bounding box | 40.00 × 20.00 × 10.00 mm |
 | Triangles | 12 |
-| Open edges | 0 — watertight |
+| Open edges | 0 (closed surface) |
 
 Switching to inches should give 0.4882 in³, which is 8000 / 16387.064.
 
@@ -83,7 +84,7 @@ Switching to inches should give 0.4882 in³, which is 8000 / 16387.064.
 
 Three.js 0.160 and its `STLLoader` and `OrbitControls` addons, loaded from a CDN
 as plain ES modules. No bundler, no dependencies to install. Type is IBM Plex
-Sans and IBM Plex Mono.
+Sans and IBM Plex Mono. The page follows the system light or dark theme.
 
 ## License
 
